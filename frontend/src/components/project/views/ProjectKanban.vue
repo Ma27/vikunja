@@ -67,6 +67,7 @@
 									>
 										{{ bucket.count }}/{{ bucket.limit }}
 									</span>
+									<span v-if="bucket.limit == 0">{{bucket.count}}</span>
 									<Dropdown
 										v-if="canWrite && !collapsedBuckets[bucket.id]"
 										class="is-right options"
