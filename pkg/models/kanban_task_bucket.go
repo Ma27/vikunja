@@ -216,5 +216,6 @@ func (b *TaskBucket) Update(s *xorm.Session, a web.Auth) (err error) {
 	return events.Dispatch(&TaskUpdatedEvent{
 		Task: task,
 		Doer: doer,
+		WasDone: task.Done,
 	})
 }

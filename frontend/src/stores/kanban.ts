@@ -177,6 +177,13 @@ export const useKanbanStore = defineStore('kanban', () => {
 			const defaultBucketId = getDefaultBucketId(currentView)
 			moveTaskToBucket(task, defaultBucketId)
 		}
+
+		if(!task.done
+			&& currentTaskBucket.id !== task.bucketId
+			&& (task.repeatAfter !== 0 || task.repeatMode !== 0)
+		) {
+			moveTaskToBucket(task, task.bucketId)
+		}
 		
 		setTaskInBucket(task)
 	}
