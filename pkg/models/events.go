@@ -29,6 +29,7 @@ import (
 type TaskCreatedEvent struct {
 	Task *Task      `json:"task"`
 	Doer *user.User `json:"doer"`
+	WasDone bool    `json:"was_done"`
 }
 
 // Name defines the name for TaskCreatedEvent
@@ -40,6 +41,7 @@ func (t *TaskCreatedEvent) Name() string {
 type TaskUpdatedEvent struct {
 	Task *Task      `json:"task"`
 	Doer *user.User `json:"doer"`
+	WasDone bool    `json:"was_done"`
 }
 
 // Name defines the name for TaskUpdatedEvent

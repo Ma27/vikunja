@@ -314,7 +314,7 @@ func (sf *SavedFilter) Delete(s *xorm.Session, _ web.Auth) error {
 	return err
 }
 
-func addTaskToFilter(s *xorm.Session, filter *SavedFilter, view *ProjectView, fallbackTimezone string, task *Task) (taskBucket *TaskBucket, taskPosition *TaskPosition, err error) {
+func addTaskToFilter(s *xorm.Session, filter *SavedFilter, view *ProjectView, fallbackTimezone string, task *Task, wasDone bool) (taskBucket *TaskBucket, taskPosition *TaskPosition, err error) {
 
 	filterString := filter.Filters.Filter
 
@@ -352,7 +352,7 @@ func addTaskToFilter(s *xorm.Session, filter *SavedFilter, view *ProjectView, fa
 	if err != nil {
 		return nil, nil, err
 	}
-	if !taskHasBucketInView {
+	if !taskHasBucketInView || (taskHasBucketInView && task.isRepeating() && (task.Done || wasDone)) {
 		bucketID, err := getDefaultBucketID(s, view)
 		if err != nil {
 			return nil, nil, err
@@ -373,7 +373,7 @@ func addTaskToFilter(s *xorm.Session, filter *SavedFilter, view *ProjectView, fa
 	if err != nil {
 		return nil, nil, err
 	}
-	if !existingTaskPosition {
+	if !existingTaskPosition || (taskHasBucketInView && task.isRepeating() && (task.Done || wasDone)) {
 		taskPosition = &TaskPosition{
 			TaskID:        task.ID,
 			ProjectViewID: view.ID,

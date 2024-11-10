@@ -1057,7 +1057,7 @@ func (t *Task) Update(s *xorm.Session, a web.Auth) (err error) {
 	}
 
 	views := []*ProjectView{}
-	if (!t.isRepeating() && t.Done != ot.Done) || t.ProjectID != ot.ProjectID {
+	if (t.Done != ot.Done) || t.ProjectID != ot.ProjectID {
 		err = s.
 			Where("project_id = ? AND view_kind = ? AND bucket_configuration_mode = ?",
 				t.ProjectID, ProjectViewKindKanban, BucketConfigurationModeManual).
@@ -1167,6 +1167,56 @@ func (t *Task) Update(s *xorm.Session, a web.Auth) (err error) {
 			}
 		}
 	}
+
+	if t.ProjectID == ot.ProjectID && t.isRepeating() && t.Done != ot.Done {
+		for _, view := range views {
+			currentTaskBucket := &TaskBucket{}
+			_, err := s.Where("task_id = ? AND project_view_id = ?", t.ID, view.ID).
+				Get(currentTaskBucket)
+			if err != nil {
+				return err
+			}
+
+			var bucketID = currentTaskBucket.BucketID
+			var defaultBucketID, error = getDefaultBucketID(s, view)
+			if error != nil {
+				return error
+			}
+
+			// Nothing to do, already in default bucket.
+			if bucketID == defaultBucketID {
+				continue
+			}
+
+			// Task done? Move back to default
+			if t.Done {
+				bucketID = defaultBucketID
+			}
+
+			tb := &TaskBucket{
+				BucketID:      bucketID,
+				TaskID:        t.ID,
+				ProjectViewID: view.ID,
+				ProjectID:     t.ProjectID,
+			}
+			err = tb.Update(s, a)
+			if err != nil {
+				return err
+			}
+
+			tp := TaskPosition{
+				TaskID:        t.ID,
+				ProjectViewID: view.ID,
+				Position:      calculateDefaultPosition(t.Index, t.Position),
+			}
+			err = tp.Update(s, a)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	wasDone := t.Done
 
 	// When a repeating task is marked as done, we update all deadlines and reminders and set it as undone
 	updateDone(&ot, t)
@@ -1309,9 +1359,30 @@ func (t *Task) Update(s *xorm.Session, a web.Auth) (err error) {
 	err = events.Dispatch(&TaskUpdatedEvent{
 		Task: t,
 		Doer: doer,
+		WasDone: wasDone,
 	})
 	if err != nil {
 		return err
+	}
+
+	if wasDone {
+		previousBucketID := t.BucketID
+		view := &ProjectView{}
+		_, err := s.Distinct("pv.id").
+			Table("project_views").
+			Alias("pv").
+			Join("INNER", "buckets", "buckets.project_view_id = pv.id").
+			Where(builder.Eq{"buckets.id": previousBucketID}).
+			Get(view)
+
+		if err != nil {
+			log.Warningf("Failed fetching current project view ID of task %d: %v", t.ID, err)
+		} else {
+			t.BucketID, err = getDefaultBucketID(s, view)
+			if err != nil {
+				log.Warningf("Failed refreshing bucket ID of task %d: %v", t.ID, err)
+			}
+		}
 	}
 
 	return updateProjectLastUpdated(s, &Project{ID: t.ProjectID})
